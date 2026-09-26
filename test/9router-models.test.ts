@@ -10,9 +10,10 @@ const home = mkdtempSync(join(tmpdir(), "pi9r-"));
 process.env.HOME = home;
 process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
 process.env.NINEROUTER_API_KEY = "sk-test";
+process.env.NINEROUTER_DATA_DIR = join(home, "no-9router");
 
 const ext = await import("../extensions/9router-models.ts");
-const { glob, selected, toPiModel, resolveValue } = ext;
+const { glob, selected, toPiModel, resolveValue, fromModelsDev, lookupPrice, primaryModel } = ext;
 
 const MODELS = [
   { id: "ape", owned_by: "combo", capabilities: { vision: true, reasoning: true, contextWindow: 1000000, maxOutput: 128000 } },
@@ -38,7 +39,7 @@ async function withRouter(handler: (req: any, res: any) => void, fn: (url: strin
   try { await fn(`http://127.0.0.1:${port}/v1`); } finally { srv.close(); }
 }
 
-const cfg = (over = {}) => ({ provider: "9router", baseUrl: "x", apiKey: "", include: ["combo"], exclude: [], timeoutMs: 1000, ...over });
+const cfg = (over = {}) => ({ provider: "9router", baseUrl: "x", apiKey: "", include: ["combo"], exclude: [], timeoutMs: 1000, pricing: false, combos: {}, prices: {}, ...over });
 
 test("glob matching", () => {
   assert.ok(glob("cx/gpt-6-*", "cx/gpt-6-astra"));
@@ -139,5 +140,44 @@ test("config file is honoured", async () => {
     try { await mod.default(pi); } finally { process.env.HOME = home; }
     assert.equal(pi.calls.providers[0].name, "router");
     assert.deepEqual(pi.calls.providers[0].cfg.models.map((m: any) => m.id), ["ag/flash"]);
+  });
+});
+
+const DEV = {
+  anthropic: { models: { "claude-opus-5-5": { cost: { input: 4, output: 20, cache_read: 0.2, cache_write: 5 } } } },
+  openai: { models: { "gpt-6-astra": { cost: { input: 10, output: 50, cache_read: 1, tiers: [{ input: 20, output: 75, cache_read: 2, tier: { type: "context", size: 272000 } }] } },
+                      "gpt-5.6-sol": { cost: { input: 4, output: 20 } } } },
+};
+
+test("models.dev cost mapping incl. context tiers", () => {
+  const p = fromModelsDev(DEV.openai.models["gpt-6-astra"].cost)!;
+  assert.deepEqual({ ...p, tiers: undefined }, { input: 10, output: 50, cacheRead: 1, cacheWrite: 10, tiers: undefined });
+  assert.equal(p.tiers![0].inputTokensAbove, 272000);
+  assert.equal(p.tiers![0].output, 75);
+  assert.equal(fromModelsDev({ input: 1 }), undefined);
+});
+
+test("price lookup by 9router alias and version spelling", () => {
+  assert.equal(lookupPrice("cc/claude-opus-5-5", DEV as any)!.input, 4);
+  assert.equal(lookupPrice("cx/gpt-6-astra", DEV as any)!.output, 50);
+  assert.equal(lookupPrice("cx/gpt-5-6-sol", DEV as any)!.input, 4);   // 5-6 -> 5.6
+  assert.equal(lookupPrice("zz/unknown", DEV as any), undefined);
+});
+
+test("combo resolution follows nesting and survives cycles", () => {
+  const combos = { ape: ["opus", "fable"], opus: ["cc/claude-opus-5-5"], loop: ["loop2"], loop2: ["loop"] };
+  assert.equal(primaryModel("ape", combos), "cc/claude-opus-5-5");
+  assert.equal(primaryModel("cx/gpt-6-astra", combos), "cx/gpt-6-astra");
+  assert.ok(["loop", "loop2"].includes(primaryModel("loop", combos)));
+});
+
+test("explicit price overrides need no network and reach the Pi model", async () => {
+  await withRouter((_q, res) => { res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ data: MODELS })); }, async (url) => {
+    writeFileSync(join(home, ".pi", "agent", "9router.json"), JSON.stringify({ baseUrl: url, pricing: false, prices: { ape: { input: 5, output: 25 } } }));
+    const pi = fakePi();
+    await ext.default(pi);
+    const models = pi.calls.providers.at(-1).cfg.models;
+    assert.deepEqual(models.find((m: any) => m.id === "ape").cost, { input: 5, output: 25, cacheRead: 0, cacheWrite: 0 });
+    assert.equal(models.find((m: any) => m.id === "fable").cost.input, 0);
   });
 });

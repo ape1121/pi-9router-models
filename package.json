@@ -1,6 +1,6 @@
 {
   "name": "pi-9router-models",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Pi extension: live-sync your 9router combos into Pi's model catalogue",
   "keywords": [
     "pi-package",

@@ -30,6 +30,7 @@ This extension makes **9router the single source of truth**. On every Pi start i
 - 🧠 **Real capabilities.** Context window, max output, vision and reasoning come from 9router, not guesses. Always-on thinking models get `off` hidden.
 - 🎯 **Curated by default.** Only your **combos** show up. Opt in to direct models by group (`cx`, `cc`, `ag`, …) or glob (`cx/gpt-6-*`).
 - 🛟 **Offline-safe.** The last good catalogue is cached. 9router down? Pi still starts with the models you had.
+- 💵 **Costs in dollars.** Models get API-equivalent list prices from [models.dev](https://models.dev) (the catalogue 9router itself uses), resolved through your combos (`ape → opus → cc/claude-opus-5-5`). Pi's footer, session stats and orchestrators like Paperclip show spend instead of `$0`.
 - 🔄 **`/9router-sync`** refreshes a running session after you edit combos.
 - 🔐 **Pi-native secrets.** `apiKey` accepts Pi config values: `$ENV`, `${ENV}`, or `!command` (password managers, key scripts).
 - 📦 **Zero dependencies**, one file, survives `pi update`.
@@ -44,7 +45,7 @@ pi --list-models
 
 That's it for a default 9router on `http://127.0.0.1:20128/v1`.
 
-Pin a release for reproducible installs: `pi install git:github.com/ape1121/pi-9router-models@v0.1.0`.
+Pin a release for reproducible installs: `pi install git:github.com/ape1121/pi-9router-models@v0.2.0`.
 
 > **Migrating from a static list?** Remove the `9router` provider from `~/.pi/agent/models.json` (the extension replaces its model list either way), and set `"enabledModels": ["9router/**"]` in `~/.pi/agent/settings.json` if you want Ctrl+P cycling to follow 9router too.
 
@@ -59,7 +60,10 @@ Everything is optional. Create `~/.pi/agent/9router.json`:
   "apiKey": "$NINEROUTER_API_KEY",
   "include": ["combo"],
   "exclude": [],
-  "timeoutMs": 3000
+  "timeoutMs": 3000,
+  "pricing": "models.dev",
+  "combos": {},
+  "prices": {}
 }
 ```
 
@@ -71,6 +75,9 @@ Everything is optional. Create `~/.pi/agent/9router.json`:
 | `include` | `["combo"]` | 9router `owned_by` groups and/or id globs |
 | `exclude` | `[]` | Same syntax; wins over `include` |
 | `timeoutMs` | `3000` | Startup fetch timeout before falling back to cache |
+| `pricing` | `"models.dev"` | Price source for cost tracking; `false` registers `$0` |
+| `combos` | `{}` | Pin which model prices a combo, e.g. `{ "ape": "cc/claude-opus-5-5" }` |
+| `prices` | `{}` | Hard overrides in $/1M tokens: `{ "ape": { "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 6.25 } }` |
 
 Environment overrides: `NINEROUTER_BASE_URL`, `NINEROUTER_INCLUDE` (comma-separated).
 
@@ -112,7 +119,18 @@ Environment overrides: `NINEROUTER_BASE_URL`, `NINEROUTER_INCLUDE` (comma-separa
 | `capabilities.reasoning` | `reasoning` |
 | `capabilities.thinkingCanDisable: false` | `thinkingLevelMap: { off: null }` |
 
-Costs are registered as zero; 9router owns billing.
+### Costs
+
+Pi computes the cost of every response from the model's `cost` rates; anything reading Pi's usage (the footer, `/session`, Paperclip's cost dashboard and budgets) aggregates it. The extension fills those rates with **API-equivalent list prices**:
+
+1. `prices[id]` from your config, if set.
+2. Otherwise the combo is resolved to its **first** member, following nested combos. Membership comes from `combos` in config, else from 9router's local dashboard API using the same machine-local CLI token the `9router` CLI uses (read from `~/.9router`, localhost only, never sent anywhere else).
+3. That model is looked up on models.dev (9router alias → vendor: `cc` → Anthropic, `cx` → OpenAI, …). Context-length price tiers carry over. The catalogue is cached for 24h in `~/.pi/agent/cache/`.
+
+Caveats, read these before setting budgets:
+
+- **List price ≠ what you pay.** Subscription-backed routes (Claude Code, Codex, Copilot…) are flat-rate; the number is what the same tokens would cost on the public API. Great for comparing agents, tickets and models. Don't treat it as an invoice.
+- **Fallbacks are priced as the primary.** Pi only knows it called `ape`, not which member 9router actually used. Pin `combos`/`prices` if a combo mixes very differently priced models.
 
 ## Works great with
 
@@ -123,12 +141,14 @@ Costs are registered as zero; 9router owns billing.
 ## Troubleshooting
 
 ```sh
-PI_9ROUTER_DEBUG=1 pi --list-models   # prints count and source (live / cache / none)
+PI_9ROUTER_DEBUG=1 pi --list-models   # prints count, source (live / cache / none) and per-model price + where it came from
 ```
 
 - **`no models registered`**: 9router unreachable and no cache yet. Check `baseUrl` and the key.
 - **`No models match pattern "9router/x"`**: your `enabledModels` or `--models` names a combo 9router no longer has. That warning is the drift this extension exists to surface.
 - **Stale list in a long-running session**: run `/9router-sync`.
+- **A model shows `(no price)`**: models.dev has no match. Add it to `prices` or `combos`.
+- **Orchestrator model picker is stale**: it caches `pi --list-models`. Paperclip keeps it for 60 seconds and its *Refresh models* button doesn't bypass that for Pi, so wait a minute and reopen the picker.
 
 ## Development
 
