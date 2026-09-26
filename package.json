@@ -1,13 +1,44 @@
 {
   "name": "pi-9router-models",
   "version": "0.1.0",
-  "private": true,
-  "description": "Sync Pi's model catalogue from a local 9router instance",
+  "description": "Pi extension: live-sync your 9router combos into Pi's model catalogue",
   "keywords": [
-    "pi-package"
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "9router",
+    "llm",
+    "models",
+    "openai-compatible"
   ],
   "license": "MIT",
+  "author": "Apeworks",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ape1121/pi-9router-models.git"
+  },
+  "homepage": "https://github.com/ape1121/pi-9router-models#readme",
+  "bugs": "https://github.com/ape1121/pi-9router-models/issues",
+  "files": [
+    "extensions",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "test": "node --test 'test/*.test.ts'"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  },
   "pi": {
     "extensions": [
       "./extensions"

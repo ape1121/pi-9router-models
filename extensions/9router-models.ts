@@ -9,11 +9,11 @@
  *
  * Offline-safe: the last good catalogue is cached and used when 9router is down.
  *
- * Config (optional): ~/.pi/agent/9router.json
+ * Config (optional): ~/.pi/agent/9router.json  (env NINEROUTER_BASE_URL / NINEROUTER_INCLUDE override)
  *   {
  *     "provider": "9router",
  *     "baseUrl": "http://127.0.0.1:20128/v1",
- *     "apiKey": "!python3 /path/to/key.py",   // Pi config-value syntax: !cmd, $ENV, literal
+ *     "apiKey": "$NINEROUTER_API_KEY",        // Pi config-value syntax: !cmd, $ENV, literal
  *     "include": ["combo"],                    // owned_by groups and/or id globs, e.g. "cx/gpt-6-*"
  *     "exclude": ["*-review"],
  *     "timeoutMs": 3000
@@ -25,7 +25,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
-type Cfg = {
+export type Cfg = {
 	provider: string;
 	baseUrl: string;
 	apiKey: string;
@@ -34,7 +34,7 @@ type Cfg = {
 	timeoutMs: number;
 };
 
-type RouterModel = {
+export type RouterModel = {
 	id: string;
 	owned_by?: string;
 	context_length?: number;
@@ -74,28 +74,32 @@ function loadConfig(): Cfg {
 			}
 		}
 	}
-	return { ...DEFAULTS, ...user, baseUrl: (user.baseUrl ?? DEFAULTS.baseUrl).replace(/\/+$/, "") };
+	const env: Partial<Cfg> = {};
+	if (process.env.NINEROUTER_BASE_URL) env.baseUrl = process.env.NINEROUTER_BASE_URL;
+	if (process.env.NINEROUTER_INCLUDE) env.include = process.env.NINEROUTER_INCLUDE.split(",").map((s) => s.trim()).filter(Boolean);
+	const merged = { ...DEFAULTS, ...user, ...env };
+	return { ...merged, baseUrl: merged.baseUrl.replace(/\/+$/, "") };
 }
 
 /** Resolve Pi config-value syntax (!command, $ENV/${ENV}, literal) for our own fetch. */
-function resolveValue(v: string): string {
+export function resolveValue(v: string): string {
 	if (v.startsWith("!")) return execSync(v.slice(1), { encoding: "utf8", timeout: 5000 }).trim();
 	return v.replace(/\$\$|\$!|\$\{(\w+)\}|\$(\w+)/g, (m, a, b) =>
 		m === "$$" ? "$" : m === "$!" ? "!" : (process.env[a ?? b] ?? ""),
 	);
 }
 
-function glob(pattern: string, s: string): boolean {
+export function glob(pattern: string, s: string): boolean {
 	const re = new RegExp("^" + pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".") + "$");
 	return re.test(s);
 }
 
-function selected(m: RouterModel, cfg: Cfg): boolean {
+export function selected(m: RouterModel, cfg: Cfg): boolean {
 	const hit = (p: string) => p === m.owned_by || glob(p, m.id);
 	return cfg.include.some(hit) && !cfg.exclude.some(hit);
 }
 
-function toPiModel(m: RouterModel) {
+export function toPiModel(m: RouterModel) {
 	const c = m.capabilities ?? {};
 	const reasoning = !!c.reasoning;
 	return {
