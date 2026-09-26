@@ -1,0 +1,16 @@
+{
+  "name": "pi-9router-models",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sync Pi's model catalogue from a local 9router instance",
+  "keywords": [
+    "pi-package"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  }
+}
