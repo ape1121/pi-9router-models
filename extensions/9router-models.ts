@@ -135,6 +135,9 @@ export function toPiModel(m: RouterModel, cost: Price = ZERO) {
 		cost,
 		contextWindow: c.contextWindow ?? m.context_length ?? 128000,
 		maxTokens: c.maxOutput ?? m.max_completion_tokens ?? 16384,
+		// 9router silently drops OpenAI `developer` messages (Pi's default for reasoning models),
+		// so the whole system prompt vanished. Send it as `system`, which every upstream honours.
+		compat: { supportsDeveloperRole: false },
 	};
 }
 

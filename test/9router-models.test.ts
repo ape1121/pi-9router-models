@@ -61,6 +61,7 @@ test("capability mapping", () => {
   assert.deepEqual(ape.input, ["text", "image"]);
   assert.equal(ape.reasoning, true);
   assert.equal((ape as any).thinkingLevelMap, undefined);
+  assert.equal((ape as any).compat.supportsDeveloperRole, false); // 9router drops `developer` messages
   assert.deepEqual((toPiModel(MODELS[1]) as any).thinkingLevelMap, { off: null });
   const flash = toPiModel(MODELS[4]);
   assert.equal(flash.contextWindow, 1048576);
