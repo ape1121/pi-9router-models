@@ -62,6 +62,7 @@ test("capability mapping", () => {
   assert.equal(ape.reasoning, true);
   assert.equal((ape as any).thinkingLevelMap, undefined);
   assert.equal((ape as any).compat.supportsDeveloperRole, false); // 9router drops `developer` messages
+  assert.equal((toPiModel(MODELS[0], undefined, true) as any).compat.supportsDeveloperRole, true);
   assert.deepEqual((toPiModel(MODELS[1]) as any).thinkingLevelMap, { off: null });
   const flash = toPiModel(MODELS[4]);
   assert.equal(flash.contextWindow, 1048576);
@@ -141,6 +142,7 @@ test("config file is honoured", async () => {
     try { await mod.default(pi); } finally { process.env.HOME = home; }
     assert.equal(pi.calls.providers[0].name, "router");
     assert.deepEqual(pi.calls.providers[0].cfg.models.map((m: any) => m.id), ["ag/flash"]);
+    assert.equal(pi.calls.providers[0].cfg.models[0].compat.supportsDeveloperRole, false); // default when omitted
   });
 });
 
@@ -180,5 +182,16 @@ test("explicit price overrides need no network and reach the Pi model", async ()
     const models = pi.calls.providers.at(-1).cfg.models;
     assert.deepEqual(models.find((m: any) => m.id === "ape").cost, { input: 5, output: 25, cacheRead: 0, cacheWrite: 0 });
     assert.equal(models.find((m: any) => m.id === "fable").cost.input, 0);
+  });
+});
+
+test("supportsDeveloperRole config feeds the compat flag", async () => {
+  await withRouter((_q, res) => { res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ data: MODELS })); }, async (url) => {
+    for (const value of [true, false]) {
+      writeFileSync(join(home, ".pi", "agent", "9router.json"), JSON.stringify({ baseUrl: url, pricing: false, supportsDeveloperRole: value }));
+      const pi = fakePi();
+      await ext.default(pi);
+      for (const m of pi.calls.providers.at(-1).cfg.models) assert.equal(m.compat.supportsDeveloperRole, value);
+    }
   });
 });

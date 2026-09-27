@@ -63,7 +63,8 @@ Everything is optional. Create `~/.pi/agent/9router.json`:
   "timeoutMs": 3000,
   "pricing": "models.dev",
   "combos": {},
-  "prices": {}
+  "prices": {},
+  "supportsDeveloperRole": false
 }
 ```
 
@@ -78,6 +79,7 @@ Everything is optional. Create `~/.pi/agent/9router.json`:
 | `pricing` | `"models.dev"` | Price source for cost tracking; `false` registers `$0` |
 | `combos` | `{}` | Pin which model prices a combo, e.g. `{ "ape": "cc/claude-opus-5-5" }` |
 | `prices` | `{}` | Hard overrides in $/1M tokens: `{ "ape": { "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 6.25 } }` |
+| `supportsDeveloperRole` | `false` | Send the system prompt as an OpenAI `developer` message; keep `false` while 9router drops `developer` messages |
 
 Environment overrides: `NINEROUTER_BASE_URL`, `NINEROUTER_INCLUDE` (comma-separated).
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- New config: `supportsDeveloperRole` (default `false`) controls `compat.supportsDeveloperRole`, so the system prompt can be sent as `developer` again once 9router stops dropping it.
+
 ## 0.2.0
 
 - Cost tracking: models get API-equivalent list prices from models.dev (cached 24h), resolved through combos (nested combos followed to their first member). Context price tiers supported.

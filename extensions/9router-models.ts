@@ -19,7 +19,8 @@
  *     "timeoutMs": 3000,
  *     "pricing": "models.dev",                 // or false; API-equivalent list prices for cost tracking
  *     "combos": { "ape": "cc/claude-opus-5-5" }, // optional: combo -> model whose price to use
- *     "prices": { "ape": { "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 6.25 } } // $/1M overrides
+ *     "prices": { "ape": { "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 6.25 } }, // $/1M overrides
+ *     "supportsDeveloperRole": false          // send system prompt as `developer` (9router currently drops it)
  *   }
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -39,6 +40,7 @@ export type Cfg = {
 	pricing: string | false;
 	combos: Record<string, string>;
 	prices: Record<string, Partial<Price>>;
+	supportsDeveloperRole: boolean;
 };
 
 export type Price = { input: number; output: number; cacheRead: number; cacheWrite: number; tiers?: (Omit<Price, "tiers"> & { inputTokensAbove: number })[] };
@@ -84,6 +86,7 @@ const DEFAULTS: Cfg = {
 	pricing: "models.dev",
 	combos: {},
 	prices: {},
+	supportsDeveloperRole: false,
 };
 
 function loadConfig(): Cfg {
@@ -123,7 +126,7 @@ export function selected(m: RouterModel, cfg: Cfg): boolean {
 	return cfg.include.some(hit) && !cfg.exclude.some(hit);
 }
 
-export function toPiModel(m: RouterModel, cost: Price = ZERO) {
+export function toPiModel(m: RouterModel, cost: Price = ZERO, supportsDeveloperRole = false) {
 	const c = m.capabilities ?? {};
 	const reasoning = !!c.reasoning;
 	return {
@@ -137,7 +140,8 @@ export function toPiModel(m: RouterModel, cost: Price = ZERO) {
 		maxTokens: c.maxOutput ?? m.max_completion_tokens ?? 16384,
 		// 9router silently drops OpenAI `developer` messages (Pi's default for reasoning models),
 		// so the whole system prompt vanished. Send it as `system`, which every upstream honours.
-		compat: { supportsDeveloperRole: false },
+		// Configurable via `supportsDeveloperRole` in case 9router fixes this.
+		compat: { supportsDeveloperRole },
 	};
 }
 
@@ -306,7 +310,7 @@ async function catalogue(cfg: Cfg): Promise<{ models: ReturnType<typeof toPiMode
 	}
 	const picked = (raw ?? []).filter((m) => m?.id && selected(m, cfg));
 	const prices = await buildPrices(cfg, picked.map((m) => m.id));
-	const models = picked.map((m) => toPiModel(m, prices[m.id]?.price));
+	const models = picked.map((m) => toPiModel(m, prices[m.id]?.price, cfg.supportsDeveloperRole === true));
 	models.sort((a, b) => a.id.localeCompare(b.id));
 	if (process.env.PI_9ROUTER_DEBUG)
 		for (const m of models) console.error(`[9router-models]   ${m.id}: $${m.cost.input}/$${m.cost.output} per 1M${prices[m.id] ? ` (via ${prices[m.id].via})` : " (no price)"}`);
